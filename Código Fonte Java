@@ -1,0 +1,190 @@
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Observable;
+import java.util.Observer;
+
+public class SistemaMonitoramentoAmbiental {
+    public static void main(String[] args) {
+        GerenciadorSensores gerenciador = new GerenciadorSensores();
+        
+        InterfaceUsuario interfaceUsuario = new InterfaceUsuario();
+        gerenciador.addObserver(interfaceUsuario);
+        
+        // Adicionando o alarme como observador
+        AlarmeSonoro alarme = new AlarmeSonoro();
+        gerenciador.addObserver(alarme);
+        
+        // Adicionando o indicador visual como observador
+        IndicadorVisual indicador = new IndicadorVisual();
+        gerenciador.addObserver(indicador);
+
+        // Simulação de dados - cenário normal
+        System.out.println("=== Simulação 1: Valores normais ===");
+        gerenciador.atualizarDadosSensor(new DadosSensor("Temperatura", 22.5, "C"));
+        gerenciador.atualizarDadosSensor(new DadosSensor("Umidade", 65.0, "%"));
+        
+        // Simulação de dados - temperatura crítica
+        System.out.println("\n=== Simulação 2: Temperatura crítica ===");
+        gerenciador.atualizarDadosSensor(new DadosSensor("Temperatura", 42.0, "C"));
+        
+        // Simulação de dados - umidade crítica
+        System.out.println("\n=== Simulação 3: Umidade crítica ===");
+        gerenciador.atualizarDadosSensor(new DadosSensor("Umidade", 15.0, "%"));
+        gerenciador.atualizarDadosSensor(new DadosSensor("Temperatura", 22.5, "C"));
+        
+        // Simulação de dados - ambos críticos
+        System.out.println("\n=== Simulação 4: Ambos críticos ===");
+        gerenciador.atualizarDadosSensor(new DadosSensor("Temperatura", 45.0, "C"));
+        gerenciador.atualizarDadosSensor(new DadosSensor("Umidade", 18.0, "%"));
+    }
+}
+
+class DadosSensor {
+    private String tipo;
+    private double valor;
+    private String unidade;
+    
+    public DadosSensor(String tipo, double valor, String unidade) {
+        this.tipo = tipo;
+        this.valor = valor;
+        this.unidade = unidade;
+    }
+    
+    public String getTipo() { return tipo; }
+    public double getValor() { return valor; }
+    public String getUnidade() { return unidade; }
+    
+    @Override
+    public String toString() {
+        return String.format("%s: %.2f %s", tipo, valor, unidade);
+    }
+}
+
+class GerenciadorSensores extends Observable {
+    private List<DadosSensor> dadosSensores = new ArrayList<>();
+    
+    public void atualizarDadosSensor(DadosSensor dados) {
+        boolean encontrado = false;
+        for (int i = 0; i < dadosSensores.size(); i++) {
+            if (dadosSensores.get(i).getTipo().equals(dados.getTipo())) {
+                dadosSensores.set(i, dados);
+                encontrado = true;
+                break;
+            }
+        }
+        if (!encontrado) {
+            dadosSensores.add(dados);
+        }
+        
+        setChanged();
+        notifyObservers(dados);
+    }
+    
+    public List<DadosSensor> getTodosDados() {
+        return new ArrayList<>(dadosSensores);
+    }
+}
+
+class InterfaceUsuario implements Observer {
+    @Override
+    public void update(Observable o, Object arg) {
+        if (o instanceof GerenciadorSensores && arg instanceof DadosSensor) {
+            DadosSensor dados = (DadosSensor) arg;
+            System.out.println("[Interface] Dados atualizados - " + dados);
+        }
+    }
+}
+
+class AlarmeSonoro implements Observer {
+    private boolean alarmeAtivo = false;
+    
+    @Override
+    public void update(Observable o, Object arg) {
+        if (o instanceof GerenciadorSensores && arg instanceof DadosSensor) {
+            DadosSensor dados = (DadosSensor) arg;
+            
+            if (dados.getTipo().equals("Temperatura") && dados.getValor() > 40) {
+                ativarAlarme("Temperatura crítica detectada: " + dados.getValor() + "°C");
+            } 
+            else if (dados.getTipo().equals("Umidade") && dados.getValor() < 20) {
+                ativarAlarme("Umidade crítica detectada: " + dados.getValor() + "%");
+            }
+            else {
+                // Verifica se todos os valores estão normais para desativar o alarme
+                boolean normal = true;
+                GerenciadorSensores gerenciador = (GerenciadorSensores) o;
+                for (DadosSensor sensor : gerenciador.getTodosDados()) {
+                    if ((sensor.getTipo().equals("Temperatura") && sensor.getValor() > 40) ||
+                        (sensor.getTipo().equals("Umidade") && sensor.getValor() < 20)) {
+                        normal = false;
+                        break;
+                    }
+                }
+                
+                if (normal && alarmeAtivo) {
+                    desativarAlarme();
+                }
+            }
+        }
+    }
+    
+    private void ativarAlarme(String mensagem) {
+        if (!alarmeAtivo) {
+            System.out.println("[ALARME] " + mensagem + " - ALARME SONORO ATIVADO!");
+            alarmeAtivo = true;
+            
+            // Em um sistema real, aqui seria acionado o alarme físico no Arduino
+            // via comunicação serial
+        }
+    }
+    
+    private void desativarAlarme() {
+        System.out.println("[ALARME] Condições normalizadas - ALARME DESATIVADO");
+        alarmeAtivo = false;
+        
+        // Em um sistema real, aqui seria desativado o alarme físico no Arduino
+    }
+}
+
+class IndicadorVisual implements Observer {
+    private boolean luzVermelhaAtiva = false;
+    
+    @Override
+    public void update(Observable o, Object arg) {
+        if (o instanceof GerenciadorSensores && arg instanceof DadosSensor) {
+            DadosSensor dados = (DadosSensor) arg;
+            GerenciadorSensores gerenciador = (GerenciadorSensores) o;
+            
+            boolean condicaoCritica = false;
+            
+            for (DadosSensor sensor : gerenciador.getTodosDados()) {
+                if ((sensor.getTipo().equals("Temperatura") && sensor.getValor() > 40) ||
+                    (sensor.getTipo().equals("Umidade") && sensor.getValor() < 20)) {
+                    condicaoCritica = true;
+                    break;
+                }
+            }
+            
+            if (condicaoCritica && !luzVermelhaAtiva) {
+                ativarLuzVermelha();
+            } 
+            else if (!condicaoCritica && luzVermelhaAtiva) {
+                desativarLuzVermelha();
+            }
+        }
+    }
+    
+    private void ativarLuzVermelha() {
+        System.out.println("[INDICADOR] Luz vermelha ACESA - Condição crítica detectada!");
+        luzVermelhaAtiva = true;
+        
+        // Em um sistema real, aqui seria acionado o LED físico no Arduino
+    }
+    
+    private void desativarLuzVermelha() {
+        System.out.println("[INDICADOR] Luz vermelha APAGADA - Condições normalizadas");
+        luzVermelhaAtiva = false;
+        
+        // Em um sistema real, aqui seria desativado o LED físico no Arduino
+    }
+}
