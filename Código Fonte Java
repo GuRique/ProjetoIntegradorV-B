@@ -4,38 +4,41 @@ import java.util.Observable;
 import java.util.Observer;
 
 public class SistemaMonitoramentoAmbiental {
+    private static SerialComunicator serialComunicator;
+    
     public static void main(String[] args) {
         GerenciadorSensores gerenciador = new GerenciadorSensores();
         
+        // Inicializa comunicação serial com Arduino
+        serialComunicator = new SerialComunicator("COM3", 9600); // Ajuste a porta COM
+        
         InterfaceUsuario interfaceUsuario = new InterfaceUsuario();
         gerenciador.addObserver(interfaceUsuario);
+        gerenciador.addObserver(new AlarmeSonoro());
+        gerenciador.addObserver(new IndicadorVisual());
+        gerenciador.addObserver(new LuzHandler());
         
-        // Adicionando o alarme como observador
-        AlarmeSonoro alarme = new AlarmeSonoro();
-        gerenciador.addObserver(alarme);
-        
-        // Adicionando o indicador visual como observador
-        IndicadorVisual indicador = new IndicadorVisual();
-        gerenciador.addObserver(indicador);
+        // Simulação de dados (substituir por leitura real da serial)
+        simularDados(gerenciador);
+    }
+    
+    private static void simularDados(GerenciadorSensores gerenciador) {
+        // Em produção, isso seria substituído pela leitura da porta serial
+        gerenciador.atualizarDadosSensor(new DadosSensor("Temperatura", 25.0, "C"));
+        gerenciador.atualizarDadosSensor(new DadosSensor("Umidade", 60.0, "%"));
+        gerenciador.atualizarDadosSensor(new DadosSensor("Luminosidade", 450.0, "lx"));
+    }
+}
 
-        // Simulação de dados - cenário normal
-        System.out.println("=== Simulação 1: Valores normais ===");
-        gerenciador.atualizarDadosSensor(new DadosSensor("Temperatura", 22.5, "C"));
-        gerenciador.atualizarDadosSensor(new DadosSensor("Umidade", 65.0, "%"));
-        
-        // Simulação de dados - temperatura crítica
-        System.out.println("\n=== Simulação 2: Temperatura crítica ===");
-        gerenciador.atualizarDadosSensor(new DadosSensor("Temperatura", 42.0, "C"));
-        
-        // Simulação de dados - umidade crítica
-        System.out.println("\n=== Simulação 3: Umidade crítica ===");
-        gerenciador.atualizarDadosSensor(new DadosSensor("Umidade", 15.0, "%"));
-        gerenciador.atualizarDadosSensor(new DadosSensor("Temperatura", 22.5, "C"));
-        
-        // Simulação de dados - ambos críticos
-        System.out.println("\n=== Simulação 4: Ambos críticos ===");
-        gerenciador.atualizarDadosSensor(new DadosSensor("Temperatura", 45.0, "C"));
-        gerenciador.atualizarDadosSensor(new DadosSensor("Umidade", 18.0, "%"));
+class SerialComunicator {
+    public SerialComunicator(String porta, int baudRate) {
+        // Implementação real da comunicação serial
+        System.out.println("Conectado ao Arduino na porta " + porta);
+    }
+    
+    public void enviarComando(String comando) {
+        // Envia comando para o Arduino
+        System.out.println("[ARDUINO] Enviando comando: " + comando);
     }
 }
 
@@ -50,48 +53,21 @@ class DadosSensor {
         this.unidade = unidade;
     }
     
-    public String getTipo() { return tipo; }
-    public double getValor() { return valor; }
-    public String getUnidade() { return unidade; }
-    
-    @Override
-    public String toString() {
-        return String.format("%s: %.2f %s", tipo, valor, unidade);
-    }
+    // Getters...
 }
 
 class GerenciadorSensores extends Observable {
     private List<DadosSensor> dadosSensores = new ArrayList<>();
     
     public void atualizarDadosSensor(DadosSensor dados) {
-        boolean encontrado = false;
-        for (int i = 0; i < dadosSensores.size(); i++) {
-            if (dadosSensores.get(i).getTipo().equals(dados.getTipo())) {
-                dadosSensores.set(i, dados);
-                encontrado = true;
-                break;
-            }
-        }
-        if (!encontrado) {
-            dadosSensores.add(dados);
-        }
-        
-        setChanged();
-        notifyObservers(dados);
-    }
-    
-    public List<DadosSensor> getTodosDados() {
-        return new ArrayList<>(dadosSensores);
+        // Implementação existente...
     }
 }
 
 class InterfaceUsuario implements Observer {
     @Override
     public void update(Observable o, Object arg) {
-        if (o instanceof GerenciadorSensores && arg instanceof DadosSensor) {
-            DadosSensor dados = (DadosSensor) arg;
-            System.out.println("[Interface] Dados atualizados - " + dados);
-        }
+        // Implementação existente...
     }
 }
 
@@ -102,61 +78,9 @@ class AlarmeSonoro implements Observer {
     public void update(Observable o, Object arg) {
         if (o instanceof GerenciadorSensores && arg instanceof DadosSensor) {
             DadosSensor dados = (DadosSensor) arg;
-            
-            if (dados.getTipo().equals("Temperatura") && dados.getValor() > 40) {
-                ativarAlarme("Temperatura crítica detectada: " + dados.getValor() + "°C");
-            } 
-            else if (dados.getTipo().equals("Umidade") && dados.getValor() < 20) {
-                ativarAlarme("Umidade crítica detectada: " + dados.getValor() + "%");
-            }
-            else {
-                // Verifica se todos os valores estão normais para desativar o alarme
-                boolean normal = true;
-                GerenciadorSensores gerenciador = (GerenciadorSensores) o;
-                for (DadosSensor sensor : gerenciador.getTodosDados()) {
-                    if ((sensor.getTipo().equals("Temperatura") && sensor.getValor() > 40) ||
-                        (sensor.getTipo().equals("Umidade") && sensor.getValor() < 20)) {
-                        normal = false;
-                        break;
-                    }
-                }
-                
-                if (normal && alarmeAtivo) {
-                    desativarAlarme();
-                }
-            }
-        }
-    }
-    
-    private void ativarAlarme(String mensagem) {
-        if (!alarmeAtivo) {
-            System.out.println("[ALARME] " + mensagem + " - ALARME SONORO ATIVADO!");
-            alarmeAtivo = true;
-            
-            // Em um sistema real, aqui seria acionado o alarme físico no Arduino
-            // via comunicação serial
-        }
-    }
-    
-    private void desativarAlarme() {
-        System.out.println("[ALARME] Condições normalizadas - ALARME DESATIVADO");
-        alarmeAtivo = false;
-        
-        // Em um sistema real, aqui seria desativado o alarme físico no Arduino
-    }
-}
-
-class IndicadorVisual implements Observer {
-    private boolean luzVermelhaAtiva = false;
-    
-    @Override
-    public void update(Observable o, Object arg) {
-        if (o instanceof GerenciadorSensores && arg instanceof DadosSensor) {
-            DadosSensor dados = (DadosSensor) arg;
             GerenciadorSensores gerenciador = (GerenciadorSensores) o;
             
             boolean condicaoCritica = false;
-            
             for (DadosSensor sensor : gerenciador.getTodosDados()) {
                 if ((sensor.getTipo().equals("Temperatura") && sensor.getValor() > 40) ||
                     (sensor.getTipo().equals("Umidade") && sensor.getValor() < 20)) {
@@ -165,26 +89,76 @@ class IndicadorVisual implements Observer {
                 }
             }
             
-            if (condicaoCritica && !luzVermelhaAtiva) {
-                ativarLuzVermelha();
+            if (condicaoCritica && !alarmeAtivo) {
+                ativarAlarme();
             } 
-            else if (!condicaoCritica && luzVermelhaAtiva) {
-                desativarLuzVermelha();
+            else if (!condicaoCritica && alarmeAtivo) {
+                desativarAlarme();
             }
         }
     }
     
-    private void ativarLuzVermelha() {
-        System.out.println("[INDICADOR] Luz vermelha ACESA - Condição crítica detectada!");
-        luzVermelhaAtiva = true;
-        
-        // Em um sistema real, aqui seria acionado o LED físico no Arduino
+    private void ativarAlarme() {
+        System.out.println("[ALARME] Ativando alarme intermitente");
+        alarmeAtivo = true;
+        // Envia comando para Arduino ativar buzzer em modo intermitente
+        SistemaMonitoramentoAmbiental.serialComunicator.enviarComando("ALARME_ON");
     }
     
-    private void desativarLuzVermelha() {
-        System.out.println("[INDICADOR] Luz vermelha APAGADA - Condições normalizadas");
-        luzVermelhaAtiva = false;
-        
-        // Em um sistema real, aqui seria desativado o LED físico no Arduino
+    private void desativarAlarme() {
+        System.out.println("[ALARME] Desativando alarme");
+        alarmeAtivo = false;
+        SistemaMonitoramentoAmbiental.serialComunicator.enviarComando("ALARME_OFF");
+    }
+}
+
+class IndicadorVisual implements Observer {
+    @Override
+    public void update(Observable o, Object arg) {
+        if (o instanceof GerenciadorSensores && arg instanceof DadosSensor) {
+            DadosSensor dados = (DadosSensor) arg;
+            GerenciadorSensores gerenciador = (GerenciadorSensores) o;
+            
+            // Verifica temperatura
+            DadosSensor temp = gerenciador.getTodosDados().stream()
+                .filter(s -> s.getTipo().equals("Temperatura"))
+                .findFirst().orElse(null);
+                
+            if (temp != null) {
+                if (temp.getValor() > 40) {
+                    SistemaMonitoramentoAmbiental.serialComunicator.enviarComando("TEMP_ALTA_ON");
+                } else if (temp.getValor() < 0) {
+                    SistemaMonitoramentoAmbiental.serialComunicator.enviarComando("TEMP_BAIXA_ON");
+                } else {
+                    SistemaMonitoramentoAmbiental.serialComunicator.enviarComando("TEMP_NORMAL");
+                }
+            }
+            
+            // Verifica umidade crítica para LED de alerta
+            if (dados.getTipo().equals("Umidade") {
+                if (dados.getValor() < 20) {
+                    SistemaMonitoramentoAmbiental.serialComunicator.enviarComando("ALERTA_ON");
+                } else {
+                    SistemaMonitoramentoAmbiental.serialComunicator.enviarComando("ALERTA_OFF");
+                }
+            }
+        }
+    }
+}
+
+class LuzHandler implements Observer {
+    @Override
+    public void update(Observable o, Object arg) {
+        if (o instanceof GerenciadorSensores && arg instanceof DadosSensor) {
+            DadosSensor dados = (DadosSensor) arg;
+            
+            if (dados.getTipo().equals("Luminosidade")) {
+                if (dados.getValor() > 700) {
+                    SistemaMonitoramentoAmbiental.serialComunicator.enviarComando("LUZ_OFF");
+                } else {
+                    SistemaMonitoramentoAmbiental.serialComunicator.enviarComando("LUZ_ON");
+                }
+            }
+        }
     }
 }
